@@ -51,10 +51,13 @@ type FormInput = z.input<typeof airdropFormSchema>
 type FormOutput = z.output<typeof airdropFormSchema>
 
 export interface AirdropFormProps {
-  onSubmit: (data: FormOutput) => Promise<void>;
+  storeMerkleRoot: (data: {
+    id: string
+    merkleRoot: `0x${string}`
+  }) => Promise<void>;
 }
 
-export function AirdropForm() {
+export function AirdropForm(props: AirdropFormProps) {
   const { data: walletClient } = useWalletClient();
 
   const form = useForm<FormInput, undefined, FormOutput>({
@@ -75,13 +78,14 @@ export function AirdropForm() {
     const walletClient = data.walletClient;
     const treasuryAddress = (await walletClient.getAddresses())[0];
     const cfg = airdropConfig[optimismSepolia.id];
-    walletClient.writeContract({
+    const txHash = await walletClient.writeContract({
       chain: optimismSepolia,
       address: cfg.merkleDistributorFactory_address, 
       abi: MerkleDistributorFactoryABI,
       functionName: "create",
       args: [cfg.ETHx_address, merkleTree.root as `0x${string}`, treasuryAddress, cfg.vestingSchedulerV2_address]
     });
+    await props.storeMerkleRoot({ id: txHash, merkleRoot: merkleTree.root as `0x${string}` });
   }, (errors) => {
     console.log({
       errors
