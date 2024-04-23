@@ -1,20 +1,21 @@
 "use client";
 
 import { z } from "zod";
-import { Account, Chain, Transport, WalletClient, getAddress, isAddress, parseEther } from "viem";
-import { SubmitErrorHandler, useFieldArray, useForm } from "react-hook-form";
+import { Address, getAddress, isAddress, parseEther } from "viem";
+import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useEffect, useMemo } from "react";
-import { useWalletClient, useWriteContract } from "wagmi";
+import { useEffect } from "react";
+import { useAccount, useTransaction, useWalletClient, useWatchPendingTransactions, useWriteContract } from "wagmi";
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 import { MerkleDistributorFactoryABI } from "@/MerkleDistributorFactoryABI";
-import { airdropConfig } from "./airdropConfig";
+import { airdropConfigs } from "./airdropConfig";
 import { optimismSepolia } from "viem/chains";
-import { DevTool } from "@hookform/devtools";
+import { walletClientSchema } from "./walletClientSchema";
+import { useMutation } from "@tanstack/react-query";
 
 const airdropEntrySchema = z.object({
   address: z.string().trim().refine(isAddress).transform(val => getAddress(val)),
@@ -28,33 +29,34 @@ const airdropEntrySchema = z.object({
       });
       return z.NEVER;
     }
-  }).pipe(z.bigint().positive())
+  }).pipe(z.bigint().positive().transform(x => x.toString()))
 });
 
-type ConnectedWalletClient = WalletClient<Transport, Chain, Account>;
-
 const airdropFormSchema = z.object({
-  walletClient: z.custom<ConnectedWalletClient>().nullish().transform((val, ctx) => {
-    if (val?.chain?.id !== optimismSepolia.id) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Connect wallet to Optimism Sepolia.`,
-      });
-      return z.NEVER;
-    }
-    return val!;
-  }),
+  walletClient: walletClientSchema,
   entries: z.array(airdropEntrySchema).nonempty(),
 }).refine(val => new Set(val.entries.map(entry => entry.address)).size === val.entries.length, "There are duplicate addresses.");
 
 type FormInput = z.input<typeof airdropFormSchema>
 type FormOutput = z.output<typeof airdropFormSchema>
 
+type StandardMerkleTreeData<T extends any[]> = {
+  format: 'standard-v1';
+  tree: string[];
+  values: {
+    value: T;
+    treeIndex: number;
+  }[];
+  leafEncoding: string[];
+}
+
+export type AidropMerkleTreeData = StandardMerkleTreeData<string[]>;
+
 export interface AirdropFormProps {
-  storeMerkleRoot: (data: {
-    id: string
-    merkleRoot: `0x${string}`
-  }) => Promise<void>;
+  storeMerkleTree: (data: {
+    hash: `0x${string}`
+    merkleTreeData: AidropMerkleTreeData
+  }) => Promise<Address>;
 }
 
 export function AirdropForm(props: AirdropFormProps) {
@@ -69,28 +71,40 @@ export function AirdropForm(props: AirdropFormProps) {
     mode: "onChange",
   })
 
-  useEffect(() => form.setValue("walletClient", walletClient), [walletClient, form.setValue]);
+  useEffect(() => form.setValue("walletClient", walletClient), [walletClient, form]);
 
+  const { data: transactionHash, writeContractAsync } = useWriteContract();
+  const { status: transactionStatus } = useTransaction({
+    chainId: optimismSepolia.id,
+    hash: transactionHash
+  });
+  const { mutate: storeMerkleTree, data: distributorAddress } = useMutation({
+    mutationFn: props.storeMerkleTree,
+  });
+
+  
   const handleSubmit = form.handleSubmit(async (data) => {
-    const values = data.entries.map(entry => ([entry.address, entry.allocation]));
-    const merkleTree = StandardMerkleTree.of(values, ["address", "uint256"]);
+    const airdropConfig = airdropConfigs[optimismSepolia.id];
+    
+    const values = data.entries.map((entry) => ([entry.address, entry.allocation]));
 
+    const merkleTree = StandardMerkleTree.of(values, ["address", "uint256"]);
+    merkleTree.validate();
     const walletClient = data.walletClient;
-    const treasuryAddress = (await walletClient.getAddresses())[0];
-    const cfg = airdropConfig[optimismSepolia.id];
-    const txHash = await walletClient.writeContract({
-      chain: optimismSepolia,
-      address: cfg.merkleDistributorFactory_address, 
+    const treasuryAddress = walletClient.account.address;
+
+    const txHash = await writeContractAsync({
+      account: walletClient.account,
+      chainId: optimismSepolia.id,
+      address: airdropConfig.merkleDistributorFactory_address, 
       abi: MerkleDistributorFactoryABI,
       functionName: "create",
-      args: [cfg.ETHx_address, merkleTree.root as `0x${string}`, treasuryAddress, cfg.vestingSchedulerV2_address]
+      args: [airdropConfig.ETHx_address, merkleTree.root as `0x${string}`, treasuryAddress, airdropConfig.vestingSchedulerV2_address]
     });
-    await props.storeMerkleRoot({ id: txHash, merkleRoot: merkleTree.root as `0x${string}` });
+    storeMerkleTree({ hash: txHash, merkleTreeData: merkleTree.dump() });
   }, (errors) => {
-    console.log({
-      errors
-    })
-  });
+    console.error(errors)
+  }); 
 
   const { fields, append, remove } = useFieldArray({
     name: "entries",
@@ -99,7 +113,10 @@ export function AirdropForm(props: AirdropFormProps) {
   const onAddRecipient = () => append({ address: "", allocation: "" });
   const onRemoveRecipient = (index: number) => remove(index);
 
+  const isFormDisabled = !!transactionHash;
+
   return (
+    <div className="flex flex-col gap-6">
     <Form {...form}>
       <form onSubmit={handleSubmit} className="space-y-8">
         <div>
@@ -113,6 +130,7 @@ export function AirdropForm(props: AirdropFormProps) {
               <div key={field.id} className="grid grid-cols-2 gap-1">
                 <div className="col-span-1">
                   <FormField
+                    disabled={isFormDisabled}
                     control={form.control}
                     name={`entries.${index}.address` as const}
                     render={({ field }) => (
@@ -127,6 +145,7 @@ export function AirdropForm(props: AirdropFormProps) {
                 </div>
                 <div className="col-span-1 flex gap-1 items-start">
                   <FormField
+                    disabled={isFormDisabled}
                     control={form.control}
                     name={`entries.${index}.allocation` as const}
                     render={({ field }) => (
@@ -139,6 +158,7 @@ export function AirdropForm(props: AirdropFormProps) {
                     )}
                   />
                   <Button
+                    disabled={isFormDisabled}
                     type="button"
                     variant="outline"
                     size="sm"
@@ -152,6 +172,7 @@ export function AirdropForm(props: AirdropFormProps) {
             ))}
           </div>
           <Button
+            disabled={isFormDisabled}
             type="button"
             variant="outline"
             size="sm"
@@ -161,9 +182,16 @@ export function AirdropForm(props: AirdropFormProps) {
             Add recipient
           </Button>
         </div>
-        <Button type="submit" className="float-right">Create Airdrop</Button>
+        <Button disabled={isFormDisabled} type="submit" className="float-right">Create Airdrop</Button>
       </form>
-      {/* <DevTool control={form.control} /> */}
     </Form>
+    {transactionHash && (
+      <div className="flex flex-col gap-3">
+        <p>TX Hash: {transactionHash}</p>
+        <p>TX Status: {transactionStatus}</p>
+        <p>Distributor: {distributorAddress}</p>
+      </div>
+    )}
+    </div>
   )
 }

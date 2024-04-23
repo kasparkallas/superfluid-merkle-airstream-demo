@@ -8,15 +8,9 @@ import { ConnectKitProvider, getDefaultConfig } from 'connectkit'
 
 const queryClient = new QueryClient() 
 
-export const wagmiConfig = createConfig({
-  chains: [optimismSepolia],
-  transports: {
-    [optimismSepolia.id]: http(),
-  },
-})
-
-const config = createConfig(
+const wagmiConfig = createConfig(
   getDefaultConfig({
+    ssr: true,
     chains: [optimismSepolia],
     transports: {
       [optimismSepolia.id]: http(),
