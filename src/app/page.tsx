@@ -18,13 +18,13 @@ export default function Home() {
     "use server"
 
     const transactionReceipt = await waitForTransactionReceipt(publicClient, {
-      hash: data.hash,
+      hash: data.txHash,
     });
 
     const merkleDistributorFactoryAddress = airdropConfigs[optimismSepolia.id].merkleDistributorFactory_address;
     const createdLog = transactionReceipt.logs.filter(x => x.address.toLowerCase() === merkleDistributorFactoryAddress.toLowerCase())[0];
     if (!createdLog) {
-      throw new Error(`No Created log event found of transaction ${data.hash} for address ${merkleDistributorFactoryAddress}`);
+      throw new Error(`No Created log event found of transaction ${data.txHash} for address ${merkleDistributorFactoryAddress}`);
     }
 
     const decodedLog = decodeEventLog({

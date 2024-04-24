@@ -12,10 +12,12 @@ import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { Address, isAddress } from "viem";
+import { Address, erc20Abi, formatEther, isAddress } from "viem";
 import { optimismSepolia } from "viem/chains";
 import { useAccount, useReadContract, useWalletClient, useWriteContract } from "wagmi";
 import { z } from "zod";
+
+const airdropConfig = airdropConfigs[optimismSepolia.id];
 
 const claimFormSchema = z.object({
   walletClient: walletClientSchema
@@ -44,7 +46,6 @@ export function ClaimForm(props: Props) {
 
   const { isConnected, address } = useAccount();
 
-  // const airdropConfig = airdropConfigs[optimismSepolia.id];
 
   const accountAirdropEntry = useMemo(() => {
       const merkleTree = StandardMerkleTree.load(props.merkleTreeData);
@@ -106,11 +107,19 @@ export function ClaimForm(props: Props) {
     functionName: "isActive"
   });
 
+  const { data: balance } = useReadContract({
+    address: airdropConfig.ETHx_address,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [props.distributorAddress],
+  });
+
   return (
       <Form {...form}>
           <p>Is claimed: {(!!isClaimed).toString()}</p>
           <p>Is active: {(!!isActive).toString()}</p>
           <p>Is part of airdrop: {(!!accountAirdropEntry).toString()}</p>
+          <p>Airdrop contract balance: {balance ? formatEther(balance) : "0"}</p>
           <form onSubmit={handleSubmit} className="space-y-8">
               <Button type="submit" className="float-right">Claim Airdrop</Button>
           </form>

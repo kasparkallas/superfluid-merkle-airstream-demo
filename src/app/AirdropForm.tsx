@@ -54,7 +54,7 @@ export type AidropMerkleTreeData = StandardMerkleTreeData<string[]>;
 
 export interface AirdropFormProps {
   storeMerkleTree: (data: {
-    hash: `0x${string}`
+    txHash: `0x${string}`
     merkleTreeData: AidropMerkleTreeData
   }) => Promise<Address>;
 }
@@ -81,7 +81,6 @@ export function AirdropForm(props: AirdropFormProps) {
   const { mutate: storeMerkleTree, data: distributorAddress } = useMutation({
     mutationFn: props.storeMerkleTree,
   });
-
   
   const handleSubmit = form.handleSubmit(async (data) => {
     const airdropConfig = airdropConfigs[optimismSepolia.id];
@@ -90,6 +89,7 @@ export function AirdropForm(props: AirdropFormProps) {
 
     const merkleTree = StandardMerkleTree.of(values, ["address", "uint256"]);
     merkleTree.validate();
+
     const walletClient = data.walletClient;
     const treasuryAddress = walletClient.account.address;
 
@@ -101,7 +101,8 @@ export function AirdropForm(props: AirdropFormProps) {
       functionName: "create",
       args: [airdropConfig.ETHx_address, merkleTree.root as `0x${string}`, treasuryAddress, airdropConfig.vestingSchedulerV2_address]
     });
-    storeMerkleTree({ hash: txHash, merkleTreeData: merkleTree.dump() });
+
+    storeMerkleTree({ txHash, merkleTreeData: merkleTree.dump() });
   }, (errors) => {
     console.error(errors)
   }); 
