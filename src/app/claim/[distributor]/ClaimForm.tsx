@@ -110,13 +110,17 @@ export function ClaimForm(props: Props) {
 
   return (
       <Form {...form}>
-          <p>Is claimed: {(!!isClaimed).toString()}</p>
-          <p>Is active: {(!!isActive).toString()}</p>
-          <p>Is part of airdrop: {(!!accountAirdropEntry).toString()}</p>
-          <p>Airdrop contract balance: {balance ? formatEther(balance) : "0"}</p>
-          <form onSubmit={handleSubmit} className="space-y-8">
-              <Button type="submit" className="float-right">Claim Airdrop</Button>
-          </form>
+        <div className="flex flex-col gap-6">
+        <form onSubmit={handleSubmit} className="space-y-8">
+            <Button type="submit" className="float-right">Claim Airstream</Button>
+        </form>
+        <div className="flex flex-col gap-3">
+          <p className="text-sm"><span className="font-semibold">Airstream Contract Balance:</span> {balance ? `${formatEther(balance)} ETHx` : "0 ETHx"}</p>
+          <p className="text-sm"><span className="font-semibold">Is Active:</span> {(!!isActive).toString()}</p>
+          <p className="text-sm"><span className="font-semibold">Is Part of Merkle Tree:</span> {(!!accountAirdropEntry).toString()}</p>
+          <p className="text-sm"><span className="font-semibold">Is Claimed:</span> {(!!isClaimed).toString()}</p>
+        </div>
+        </div>
       </Form>
     )
 }

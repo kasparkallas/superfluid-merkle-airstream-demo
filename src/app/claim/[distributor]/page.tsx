@@ -19,7 +19,7 @@ export default async function Claim({ params }: { params: { distributor: Address
                     <ConnectKitButtonProvider />
                 </div>
                 <div className="flex flex-col min-w-max items-center">
-                    <h1 className="font-bold text-2xl mb-12">Superfluid Merkle Airdrop (Demo)</h1>
+                    <h1 className="font-bold text-2xl mb-12">Superfluid Merkle Airstream (Demo)</h1>
                     <ClaimForm distributorAddress={params.distributor} merkleTreeData={merkleTreeData} />
                 </div>
             </main>

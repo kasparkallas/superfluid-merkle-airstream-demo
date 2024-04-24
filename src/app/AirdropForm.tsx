@@ -89,7 +89,7 @@ export function AirdropForm(props: AirdropFormProps) {
           <div className="flex flex-col gap-2">
             <div className="grid grid-cols-2 gap-1">
               <FormLabel className="col-span-1">Address</FormLabel>
-              <FormLabel className="col-span-1">Allocation</FormLabel>
+              <FormLabel className="col-span-1">Allocation (ETHx)</FormLabel>
             </div>
             
             {fields.map((field, index) => (
@@ -148,17 +148,23 @@ export function AirdropForm(props: AirdropFormProps) {
             Add recipient
           </Button>
         </div>
-        <Button disabled={isFormDisabled} type="submit" className="float-right">Create Airdrop</Button>
+        <Button disabled={isFormDisabled} type="submit" className="float-right">Create Merkle Airstream</Button>
       </form>
     </Form>
     {transactionHash && (
       <div className="flex flex-col gap-3">
-        <p>TX Hash: {transactionHash}</p>
-        <p>TX Status: {transactionStatus}</p>
-        <p>Distributor: {distributorAddress}</p>
-        {/* <Link href="/some-page">
-            <a>Go to Some Page</a>
-        </Link> */}
+        <p className="text-sm"><span className="font-semibold">TX Hash:</span> {transactionHash}</p>
+        <p className="text-sm"><span className="font-semibold">TX Status:</span> {transactionStatus}</p>
+        <p className="text-sm"><span className="font-semibold">Merkle Contract:</span> {distributorAddress}</p>
+        {
+          distributorAddress && (
+            <Button variant="outline" asChild>
+              <Link className="" href={`/claim/${distributorAddress}`}>
+                Go to Claim Page
+              </Link>
+            </Button>
+          )
+        }
       </div>
     )}
     </div>
