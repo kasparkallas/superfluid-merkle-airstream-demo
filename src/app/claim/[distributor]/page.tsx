@@ -1,13 +1,13 @@
 import { kv } from '@vercel/kv';
 import { notFound } from "next/navigation";
-import { AidropMerkleTreeData } from "@/app/AirdropForm";
 import { ConnectKitButtonProvider } from "@/app/ConnectKitButtonProvider";
-import { Wagmi } from "@/wagmi";
+import { Wagmi } from "@/components/Wagmi";
 import { ClaimForm } from './ClaimForm';
 import { Address } from 'viem';
+import { AidropMerkleTreeData } from '@/app/AirdropMerkleTreeData';
 
 export default async function Claim({ params }: { params: { distributor: Address } }) {
-    const merkleTreeData = await kv.get(params.distributor) as AidropMerkleTreeData | null | undefined;
+    const merkleTreeData = await kv.get(params.distributor.toLowerCase()) as AidropMerkleTreeData | null | undefined;
     if (!merkleTreeData) {
         notFound();
     }

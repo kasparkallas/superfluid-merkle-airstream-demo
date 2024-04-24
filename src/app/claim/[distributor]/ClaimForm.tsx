@@ -1,18 +1,16 @@
 "use client";
 
 import { MerkleDistributorABI } from "@/MerkleDistributorABI";
-import { AidropMerkleTreeData } from "@/app/AirdropForm";
+import { AidropMerkleTreeData } from "@/app/AirdropMerkleTreeData";
 import { airdropConfigs } from "@/app/airdropConfig";
 import { walletClientSchema } from "@/app/walletClientSchema";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
-import { Wagmi } from "@/wagmi";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
-import { Address, erc20Abi, formatEther, isAddress } from "viem";
+import { Address, erc20Abi, formatEther } from "viem";
 import { optimismSepolia } from "viem/chains";
 import { useAccount, useReadContract, useWalletClient, useWriteContract } from "wagmi";
 import { z } from "zod";
@@ -46,7 +44,6 @@ export function ClaimForm(props: Props) {
 
   const { isConnected, address } = useAccount();
 
-
   const accountAirdropEntry = useMemo(() => {
       const merkleTree = StandardMerkleTree.load(props.merkleTreeData);
       merkleTree.validate();
@@ -56,19 +53,18 @@ export function ClaimForm(props: Props) {
       }
 
       for (const [index, value] of merkleTree.entries()) {
-          if (value[0].toLowerCase() === address.toLowerCase()) {
+          const entryAddress = value[1];
+          if (entryAddress.toLowerCase() === address.toLowerCase()) {
               const proof = merkleTree.getProof(index) as `0x${string}`[];
               const entry = {
                   index,
                   value,
                   proof
               }
-              console.log({
-                proof
-              })
               return entry;
           } 
       }
+
   }, [address, isConnected, props.merkleTreeData]);
 
   const { data: transactionHash, writeContractAsync } = useWriteContract();
@@ -78,14 +74,12 @@ export function ClaimForm(props: Props) {
       throw new Error("Not part of the airdrop.");
     }
 
-    console.log(accountAirdropEntry)
-
     await writeContractAsync({
       chainId: optimismSepolia.id,
       abi: MerkleDistributorABI,
       address: props.distributorAddress,
       functionName: "claim",
-      args: [BigInt(accountAirdropEntry.index), accountAirdropEntry.value[0] as Address, BigInt(accountAirdropEntry.value[1]), accountAirdropEntry.proof],
+      args: [BigInt(accountAirdropEntry.index), accountAirdropEntry.value[1] as Address, BigInt(accountAirdropEntry.value[2]), accountAirdropEntry.proof],
     });
   }, (errors) => {
     console.error(errors)

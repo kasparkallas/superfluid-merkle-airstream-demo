@@ -1,7 +1,6 @@
 "use client";
 
-import { z } from "zod";
-import { Address, getAddress, isAddress, parseEther } from "viem";
+import { Address } from "viem";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -9,48 +8,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
-import { useAccount, useTransaction, useWalletClient, useWatchPendingTransactions, useWriteContract } from "wagmi";
+import { useTransaction, useWalletClient, useWriteContract } from "wagmi";
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 import { MerkleDistributorFactoryABI } from "@/MerkleDistributorFactoryABI";
 import { airdropConfigs } from "./airdropConfig";
 import { optimismSepolia } from "viem/chains";
-import { walletClientSchema } from "./walletClientSchema";
 import { useMutation } from "@tanstack/react-query";
-
-const airdropEntrySchema = z.object({
-  address: z.string().trim().refine(isAddress).transform(val => getAddress(val)),
-  allocation: z.coerce.string().transform((val, ctx) => {
-    try {
-      return parseEther(val);
-    } catch(e) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Not valid ether value.`,
-      });
-      return z.NEVER;
-    }
-  }).pipe(z.bigint().positive().transform(x => x.toString()))
-});
-
-const airdropFormSchema = z.object({
-  walletClient: walletClientSchema,
-  entries: z.array(airdropEntrySchema).nonempty(),
-}).refine(val => new Set(val.entries.map(entry => entry.address)).size === val.entries.length, "There are duplicate addresses.");
-
-type FormInput = z.input<typeof airdropFormSchema>
-type FormOutput = z.output<typeof airdropFormSchema>
-
-type StandardMerkleTreeData<T extends any[]> = {
-  format: 'standard-v1';
-  tree: string[];
-  values: {
-    value: T;
-    treeIndex: number;
-  }[];
-  leafEncoding: string[];
-}
-
-export type AidropMerkleTreeData = StandardMerkleTreeData<string[]>;
+import { AidropMerkleTreeData } from "./AirdropMerkleTreeData";
+import { FormInput, FormOutput, airdropFormSchema } from "./airdropFormSchema";
+import Link from "next/link";
 
 export interface AirdropFormProps {
   storeMerkleTree: (data: {
@@ -85,9 +51,8 @@ export function AirdropForm(props: AirdropFormProps) {
   const handleSubmit = form.handleSubmit(async (data) => {
     const airdropConfig = airdropConfigs[optimismSepolia.id];
     
-    const values = data.entries.map((entry) => ([entry.address, entry.allocation]));
-
-    const merkleTree = StandardMerkleTree.of(values, ["address", "uint256"]);
+    const values = data.entries.map((entry, index) => ([index.toString(), entry.address, entry.allocation]));
+    const merkleTree = StandardMerkleTree.of(values, ["uint256", "address", "uint256"]);
     merkleTree.validate();
 
     const walletClient = data.walletClient;
@@ -114,7 +79,7 @@ export function AirdropForm(props: AirdropFormProps) {
   const onAddRecipient = () => append({ address: "", allocation: "" });
   const onRemoveRecipient = (index: number) => remove(index);
 
-  const isFormDisabled = !!transactionHash;
+  const isFormDisabled = form.formState.isSubmitting || form.formState.isSubmitSuccessful;
 
   return (
     <div className="flex flex-col gap-6">
@@ -191,6 +156,9 @@ export function AirdropForm(props: AirdropFormProps) {
         <p>TX Hash: {transactionHash}</p>
         <p>TX Status: {transactionStatus}</p>
         <p>Distributor: {distributorAddress}</p>
+        {/* <Link href="/some-page">
+            <a>Go to Some Page</a>
+        </Link> */}
       </div>
     )}
     </div>
